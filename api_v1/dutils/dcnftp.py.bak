@@ -1,0 +1,227 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+# *********************************************************************
+# Software : PyCharm
+#
+# dcnftp.py - 目前主要用户日志上传的ftp类
+#
+# Author    :yanwh(yanwh@digitalchina.com)
+#
+# Version 1.0.0
+#
+# Copyright (c) 2004-9999 Digital China Networks Co. Ltd 
+#
+#
+# *********************************************************************
+# Change log:
+#       - 2018/3/16 8:31  add by yanwh
+#
+# *********************************************************************
+# from __future__ import unicode_literals
+
+import logging
+import os
+import socket
+import time
+# noinspection PyProtectedMember
+from ftplib import FTP, error_perm
+
+from .dcnjson import JsonHandle as _Jh
+from .dcnlogs.dcnbaselog import LoggerFromArgs
+from .dcnprint import printResWarn
+
+FTP_LOG_SERVER = '192.168.60.60'  # testlink服务器的地址,默认值
+
+
+class Logger:
+    """
+    简易日志类，用于记录用户上传过程中产生的日志
+    """
+    
+    def __init__(self, filename):
+        self.logger = logging.getLogger(os.path.split(filename)[1])
+        self.logger.setLevel(level=logging.INFO)
+        self.handler = logging.FileHandler(filename)
+        self.handler.setLevel(level=logging.INFO)
+        self.formatter = logging.Formatter('%(asctime)s %(filename)s[line: %(lineno)d] %(levelname)s: %(message)s')
+        self.handler.setFormatter(self.formatter)
+        self.logger.addHandler(self.handler)
+
+
+class FtpClient(object):
+    """
+    FTP 客户端上传文件的基类
+    """
+    
+    def __init__(self, filename, dst_folder, ip, port, username, password, ftp_log_name):
+        """
+        :param filename: 需要上传的文件的全路径 例如 C://test.log
+        :param dst_folder: 上传到服务器指定的全路径 例如 C://test.log
+        :param ip: ftp服务器地址
+        :param port: ftp端口号，默认21
+        :param username: ftp服务器用户名
+        :param password: ftp服务器密码
+        """
+        self.dst_folder = dst_folder
+        self.filename = filename
+        self.ip = ip
+        self.port = port
+        self.username = username
+        self.password = password
+        self.ftp_log_name = ftp_log_name
+        self.logger = LoggerFromArgs(os.path.join(os.path.split(__file__)[0], self.ftp_log_name)).get_logger()
+        self.ftp = self._connect_ftp()
+    
+    def _connect_ftp(self):
+        """
+        连接ftp服务器，设置ftp的debug模式，主动以及被动模式，通过用户名密码登录ftp，处理异常并且记录详细交互log
+        :return: ftp实例化句柄
+        """
+        self.logger.info('Start Init FTP Client')
+        ftp = FTP()
+        self.logger.info('Init FTP Client Sucessfully')
+        ftp.set_debuglevel(0)
+        try:
+            self.logger.info('Start Connect FTP Server: {ip}:{port}'.format(ip=self.ip, port=self.port))
+            ftp.connect(self.ip, self.port, timeout=30)
+            if ftp.welcome:
+                self.logger.info(ftp.welcome)
+                self.logger.info('Connect FTP Server Sucessfully')
+        except (socket.error, socket.gaierror, Exception) as err:
+            self.logger.error(
+                'Connect FTP Server {ip}:{port} Failed ,Because Of:{err}'.format(ip=self.ip, port=self.port,
+                                                                                 err=str(err)))
+            return {'Status': 'fail',
+                    'Message': 'Connect Ftp Server {ip}:{port} Failed, Because Of:{err}'.format(ip=self.ip,
+                                                                                                port=self.port,
+                                                                                                err=err)}
+        try:
+            self.logger.info('Start Login FTP Server(username:{username} password:{password})'.format(
+                username=self.username,
+                password=self.password))
+            ftp.login(self.username, self.password)
+            self.logger.info('Login FTP Server Sucessfully')
+            ftp.set_pasv(False)  # 参数False:normal PORT mode  参数True:PASV command
+        except (error_perm, Exception) as err:
+            self.logger.error('Login FTP Server Failed, Because Of:{err}'.format(err=str(err)))
+            return {'Status': 'fail', 'Message': 'Login FTP Server Failed, Because Of:{err}'.format(err=err)}
+        return ftp
+    
+    def file_upload(self):
+        """
+        文件上传，如果服务器上面没有指定文件目录则创建
+        :return: return {'Status': 'fail/succeed', 'Message': 'xxx'}
+        """
+        if isinstance(self.ftp, FTP):
+            self.logger.info('Start Upload Log To Server')
+            if str(self.dst_folder) not in self.ftp.nlst():
+                self.ftp.mkd(self.dst_folder)
+            self.ftp.cwd(self.dst_folder)
+            file_remote = os.path.split(self.filename)[1]
+            buffer_size = 1024
+            try:
+                with open(str(self.filename), str('rb')) as fp:
+                    self.ftp.storbinary('STOR ' + file_remote, fp, buffer_size)  # 以二进制形式上传log文件
+                    time.sleep(0.2)
+                self.logger.info('FTP Client Upload Log File Successfully')
+                return {'Status': 'succeed', 'Message': 'upload {} sucessfully'.format(self.filename)}
+            except (IOError, socket.error, socket.gaierror, Exception) as e:
+                self.logger.error('Upload Log {log} Error {error}'.format(log=self.filename, error=e))
+                return {'Status': 'fail', 'Message': 'upload {} failed'.format(self.filename)}
+            finally:
+                self.ftp.set_debuglevel(0)
+                self.ftp.quit()
+        else:
+            self.logger.error('FTP Client May not Connect to Server, Upload Log File Failed')
+            return {'Status': 'fail',
+                    'Message': 'FTP Client May not Connect to Server, Upload Log File Failed'}
+
+
+class DcnCommonFtp(object):
+    """
+    读取json配置文件，上传多个日志的类，主要用于确认测试里面上传日志文件到用户自定义ftp服务器里面
+    """
+    
+    def __init__(self, ftp_config):
+        self.config = self._config(ftp_config)
+    
+    @staticmethod
+    def _config(log_config):
+        return _Jh().load_data_from_file(log_config)
+    
+    def upload(self, log_file_list):
+        """
+        多文件上传
+        :param log_file_list: 存放文件路径的列表或者set（集合），支持多文件上传
+        :return: return {'Status': 'fail or succeed', 'Message': res}
+        """
+        if isinstance(log_file_list, list):
+            filename = log_file_list if log_file_list else self.config['client_upload_filename']
+        elif isinstance(log_file_list, set):
+            filename = list(log_file_list) if log_file_list else self.config['client_upload_filename']
+        else:
+            res = '请检查输入是否为list或者set数据类型'
+            printResWarn(res)
+            return {'Status': 'fail', 'Message': res}
+        if self.config['ftp_main_switch']:
+            if filename:
+                res = map(lambda _file: FtpClient(str(_file), self.config['server_dst_folder'],
+                                                  self.config['ip'], self.config['port'], self.config['username'],
+                                                  self.config['password'], self.config['ftp_log_name']).file_upload(),
+                          filename)
+                return res
+            else:
+                res = '要上传的文件列表为空，请检查配置'
+                printResWarn(res)
+                return {'Status': 'fail', 'Message': res}
+        else:
+            res = '如果你想上传log到你指定的FTP服务器，请务必测试之前配置AffirmWireless/config/ftpconfig.json文件，首先将ftp_main_switch设置为1' \
+                  ',然后设置正确的ftp服务器地址端口号用户名和密码'
+            printResWarn(res)
+            return {'Status': 'fail', 'Message': res}
+
+
+class DcnTestlinkFtp(object):
+    """
+    通过固定用户名密码端口号等上传日志到指定的testlink服务器
+    """
+    
+    def __init__(self, testlink_args, ip=FTP_LOG_SERVER, port=21, username='dtestlink', password='dtestlink',
+                 ftp_log_name='testlink_ftp_upload.log'):
+        """
+        ftp相关参数初始化
+        :param testlink_args: testlink句柄
+        :param ip: dtestlink ftp服务器ip地址
+        :param port: 端口号
+        :param username: 用户名
+        :param password: 密码
+        :param ftp_log_name: ftp登录上传过程产生的日志
+        """
+        self.testlink_args = testlink_args
+        self.ip = ip
+        self.port = port
+        self.username = username
+        self.password = password
+        self.ftp_log_name = ftp_log_name
+    
+    def upload(self, log_file_list):
+        if 'job_id' in self.testlink_args:
+            dst_folder = self.testlink_args['job_id']
+            if isinstance(log_file_list, list):
+                filename = log_file_list
+            elif isinstance(log_file_list, set):
+                filename = list(log_file_list)
+            else:
+                res = '请检查输入是否为list或者set数据类型'
+                printResWarn(res)
+                return {'Status': 'fail', 'Message': res}
+            if filename:
+                res = map(lambda _file: FtpClient(str(_file), dst_folder, self.ip, self.port, self.username,
+                                                  self.password, self.ftp_log_name).file_upload(), filename)
+                return res
+            else:
+                res = '要上传的文件列表为空，请检查配置'
+                printResWarn(res)
+                return {'Status': 'fail', 'Message': res}
+        else:
+            printResWarn('本地执行的脚本log，无法上传到testlink服务器')

@@ -1,0 +1,62 @@
+2018-07-19 17:46:44,282: 
+2018-07-19 17:46:44,289: Kernel 3.10.0-123.el7.x86_64 on an x86_64
+2018-07-19 17:46:44,292: localhost login: 
+2018-07-19 17:46:44,293: 
+2018-07-19 17:46:44,295: 
+2018-07-19 17:46:44,296: 
+2018-07-19 17:46:44,298: 
+2018-07-19 17:46:44,299: 
+2018-07-19 17:46:44,301: 
+2018-07-19 17:46:44,302: 
+2018-07-19 17:46:46,874: Password: 
+2018-07-19 17:46:49,332: Login incorrect
+2018-07-19 17:46:49,335: 
+2018-07-19 17:46:50,591: localhost login: root
+2018-07-19 17:46:52,209: Password: 
+2018-07-19 17:46:52,437: Last login: Thu Jul 19 17:08:43 from ::ffff:172.30.0.14
+2018-07-19 17:46:54,480: ifconfig
+2018-07-19 17:46:55,368: 
+2018-07-19 17:46:55,713: [root@localhost ~]# ifconfig
+2018-07-19 17:46:55,720: ens192: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+2018-07-19 17:46:55,730:         inet 172.17.100.171  netmask 255.255.255.0  broadcast 172.17.100.255
+2018-07-19 17:46:55,739:         inet6 fe80::20c:29ff:fe13:89ee  prefixlen 64  scopeid 0x20<link>
+2018-07-19 17:46:55,747:         ether 00:0c:29:13:89:ee  txqueuelen 1000  (Ethernet)
+2018-07-19 17:46:55,756:         RX packets 980009  bytes 62582354 (59.6 MiB)
+2018-07-19 17:46:55,762:         RX errors 0  dropped 585  overruns 0  frame 0
+2018-07-19 17:46:55,769:         TX packets 6948  bytes 2294199 (2.1 MiB)
+2018-07-19 17:46:55,776:         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+2018-07-19 17:46:55,778: 
+2018-07-19 17:46:55,786: lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536
+2018-07-19 17:46:55,792:         inet 127.0.0.1  netmask 255.0.0.0
+2018-07-19 17:46:55,799:         inet6 ::1  prefixlen 128  scopeid 0x10<host>
+2018-07-19 17:46:55,805:         loop  txqueuelen 0  (Local Loopback)
+2018-07-19 17:46:55,812:         RX packets 1312  bytes 3967339 (3.7 MiB)
+2018-07-19 17:46:55,819:         RX errors 0  dropped 0  overruns 0  frame 0
+2018-07-19 17:46:55,825:         TX packets 1312  bytes 3967339 (3.7 MiB)
+2018-07-19 17:46:55,834:         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+2018-07-19 17:46:55,835: 
+2018-07-19 17:46:55,842: mon0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+2018-07-19 17:46:55,851:         unspec 00-24-D6-7E-9F-D2-F0-70-00-00-00-00-00-00-00-00  txqueuelen 1000  (UNSPEC)
+2018-07-19 17:46:55,861:         RX packets 2340943  bytes 562709310 (536.6 MiB)
+2018-07-19 17:46:55,868:         RX errors 0  dropped 0  overruns 0  frame 0
+2018-07-19 17:46:55,872:         TX packets 0  bytes 0 (0.0 B)
+2018-07-19 17:46:55,881:         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+2018-07-19 17:46:55,884: 
+2018-07-19 17:46:55,890: virbr0: flags=4099<UP,BROADCAST,MULTICAST>  mtu 1500
+2018-07-19 17:46:55,898:         inet 192.168.122.1  netmask 255.255.255.0  broadcast 192.168.122.255
+2018-07-19 17:46:55,904:         ether 2e:fa:f1:d2:ff:d2  txqueuelen 0  (Ethernet)
+2018-07-19 17:46:55,911:         RX packets 0  bytes 0 (0.0 B)
+2018-07-19 17:46:55,917:         RX errors 0  dropped 0  overruns 0  frame 0
+2018-07-19 17:46:55,921:         TX packets 0  bytes 0 (0.0 B)
+2018-07-19 17:46:55,930:         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+2018-07-19 17:46:55,933: 
+2018-07-19 17:46:55,938: wls224: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
+2018-07-19 17:46:55,948:         inet 192.168.11.100  netmask 255.255.255.0  broadcast 192.168.11.255
+2018-07-19 17:46:55,960:         inet6 fe80::224:d6ff:fe7e:9fd2  prefixlen 64  scopeid 0x20<link>
+2018-07-19 17:46:55,966:         ether 00:24:d6:7e:9f:d2  txqueuelen 1000  (Ethernet)
+2018-07-19 17:46:55,973:         RX packets 33624  bytes 33143417 (31.6 MiB)
+2018-07-19 17:46:55,980:         RX errors 0  dropped 0  overruns 0  frame 0
+2018-07-19 17:46:55,986:         TX packets 35033  bytes 38625493 (36.8 MiB)
+2018-07-19 17:46:55,996:         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
+2018-07-19 17:46:55,997: 
+2018-07-19 17:46:56,000: [root@localhost ~]# 

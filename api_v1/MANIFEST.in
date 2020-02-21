@@ -1,0 +1,2 @@
+include dautolibrary/dautoxmlconfig/*
+include dautolibrary/dautoconnections/connIxia/*

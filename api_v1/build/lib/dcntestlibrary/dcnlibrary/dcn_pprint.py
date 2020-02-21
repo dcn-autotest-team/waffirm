@@ -1,0 +1,59 @@
+# -*- coding: UTF-8 -*-#
+
+
+import inspect as _inspect
+import sys as _sys
+from contextlib import contextmanager as _contextmanager
+
+
+class DcnPrettyPrint(object):
+    def __init__(self):
+        pass
+    
+    @staticmethod
+    def common_print(dev='', cmd='', res='', notes=''):
+        print('[Device]:{dev} [Command]:{command} \n[Return]:{res} [Notes]:{notes}'.format(dev=dev, command=cmd,
+                                                                                           res=res, notes=notes))
+    
+    @staticmethod
+    @_contextmanager
+    def context_debug_print(start, end='Done'):
+        try:
+            _sys.stdout.write('#' * 27 + '\n')
+            _sys.stdout.write(start)
+            _sys.stdout.write('...\r\n')
+            _sys.stdout.flush()
+            yield
+            _sys.stdout.write('{} ... {}'.format(start, end))
+            if not end.endswith('\n'):
+                _sys.stdout.write('\n')
+            _sys.stdout.write('#' * 27 + '\n')
+        except IOError as exc:
+            print('IO Error ', exc)
+    
+    @staticmethod
+    def debug_eval_print(expression, filestream=_sys.stderr):
+        filename, lineno, calling_func, result = [None] * 4
+        stack, first_line = None, None
+        if not isinstance(expression, str):
+            repr('expression should be type of string')
+            expression = str(expression)
+        try:
+            stack = _inspect.stack()
+            frame, filename, lineno, calling_func, _, _ = stack[1]
+            first_line = '[File]:{0:<90} | [Line]:{1:<15} | [Func]:{2:<8}\n'.format(filename, repr(lineno),
+                                                                                    calling_func)
+            try:
+                result = eval(expression, frame.f_globals, frame.f_locals)
+            except Exception as e:
+                result = e
+        except Exception as e:
+            print('Could not get Frame Info ,' + repr(e), end='', file=filestream)
+        finally:
+            del stack
+        result_type = type(result)
+        second_line = '[Expr]:{0:<90} | [Type]:{1:<15} | [Result]:{2:<8}'.format(expression, repr(result_type),
+                                                                                 repr(result))
+        s = first_line + second_line
+        print(s, file=filestream)
+        return result

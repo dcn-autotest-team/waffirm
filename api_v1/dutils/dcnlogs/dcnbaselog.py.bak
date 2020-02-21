@@ -1,0 +1,137 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+# *********************************************************************
+# Software : PyCharm
+#
+# dcnbaselog.py - 
+#
+# Author    :yanwh(yanwh@digitalchina.com)
+#
+# Version 1.0.0
+#
+# Copyright (c) 2004-9999 Digital China Networks Co. Ltd 
+#
+#
+# *********************************************************************
+# Change log:
+#       - 2018/3/29 9:14  add by yanwh
+#
+# *********************************************************************
+from __future__ import unicode_literals, print_function
+
+import logging
+import os
+import threading as _th
+from abc import ABCMeta, abstractmethod
+from logging import FileHandler as _Fh
+from logging.handlers import RotatingFileHandler as _Rf
+
+from dcnhtmllog import HTMLLogger
+
+from ..dcnjson import JsonHandle as _Jh
+
+__all__ = ['HtmlHandle', 'LoggerFromArgs', 'LoggerFromFile']
+
+
+class LoggerHandle(object):
+    __metaclass__ = ABCMeta
+    
+    @abstractmethod
+    def get_logger(self):
+        """
+        抽象基类
+        :return:
+        """
+
+
+class HtmlHandle(LoggerHandle):
+    """
+    Html日志
+    """
+    
+    def __init__(self, log_path):
+        """
+
+        :type log_path: object
+        """
+        self.html_filename = os.path.splitext(log_path)[0] + '.html'
+    
+    def get_logger(self):
+        """html日志格式配置"""
+        mc = {'err_color': 'red', 'warn_color': 'yellow',
+              'info_color': 'aqua', 'dbg_color': 'white'}
+        hf = '%(message)s'
+        fz = 1
+        mb = 1024 * 1024 * 30  # 日志大小30M
+        ht = '神州数码云科Console日志'
+        ec = 'utf-8'
+        fl = logging.INFO
+        return HTMLLogger('', self.html_filename, console_log=False, html_format=hf, msg_color=mc,
+                          Keyword_FontSize=fz, HtmlmaxBytes=mb, html_title=ht, encoding=ec, fh_level=fl)
+
+
+class LoggerFromArgs(LoggerHandle):
+    """
+    简易日志类，用于记录用户上传过程中产生的日志
+    """
+    
+    def __init__(self, log_path):
+        self.logger = logging.getLogger(os.path.split(log_path)[1])
+        self.logger.setLevel(level=logging.INFO)
+        self.handler = logging.FileHandler(log_path)
+        self.handler.setLevel(level=logging.INFO)
+        self.formatter = logging.Formatter('%(asctime)s %(filename)s[line: %(lineno)d] %(levelname)s: %(message)s')
+        self.handler.setFormatter(self.formatter)
+        self.logger.addHandler(self.handler)
+    
+    def get_logger(self):
+        return self.logger
+
+
+class LoggerFromFile(LoggerHandle):
+    """
+    记录日志类，使用方法
+    l = LogHandle(日志配置文件路径)
+    （可选）l.log_filename = xxx 不填为默认值，填写了为你指定的log存放路径
+    （可选）l.logger_name = xxx 不填为默认值，填写了为你指定logger name
+    （可选）l.log_save_type = 0 or 1 "1 表示翻滚日志：日志大小也就是达到max_bytes_each之后日志进行翻滚，0表示正常FileHandle日志"
+    l.config_logger(指定日志存放路径) -->默认为CONST_PATH中指定logconfig.json配置路径，
+    默认为"E:\\script\\script_python\\AffirmWireless\\logs\\log.txt"可以当做调试日志，实际根据自己真实路径修改
+    """
+    
+    def __init__(self, log_config, log_path=None):
+        self.logger = None
+        self._config = _Jh().load_data_from_file(log_config)
+        if log_path:
+            self._config['log_filename'] = log_path
+            self.logger = logging.getLogger(log_path)
+    
+    def get_logger(self):
+        """
+        加了线程锁，保证在多线程的模式下面日志安全读写（其实有点多余，本身logging库函数自身就是线程安全函数）
+        :return:
+        """
+        config = self._config
+        mutex = _th.Lock()
+        mutex.acquire()
+        fmt = config['fmt'].replace('|', '%')
+        formatter = logging.Formatter(fmt)
+        if config['console_log_on'] == 1:  # 如果开启控制台日志
+            console = logging.StreamHandler()
+            console.setFormatter(formatter)
+            self.logger.addHandler(console)
+            self.logger.setLevel(config['log_level_in_console'])
+        if config['logfile_log_on'] == 1:  # 如果开启文件日志
+            log_file_name = config['log_filename']
+            if config['log_save_type'] == 1:
+                rt_file_handler = _Rf(log_file_name, encoding='utf-8', maxBytes=config['max_bytes_each'],
+                                      backupCount=config['backup_count'])
+                rt_file_handler.setFormatter(formatter)
+                self.logger.addHandler(rt_file_handler)
+            else:
+                fh_file_handler = _Fh(log_file_name)  # , encoding='utf-8')
+                fh_file_handler.setFormatter(formatter)
+                self.logger.addHandler(fh_file_handler)
+            self.logger.setLevel(config['log_level_in_logfile'])
+        mutex.release()
+        return self.logger

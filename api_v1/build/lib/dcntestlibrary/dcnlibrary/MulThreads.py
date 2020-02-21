@@ -1,0 +1,70 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+# *********************************************************************
+# MulThreads.py - Class of Threads
+#
+# Author:zhangjxp(zhangjxp@digitalchina.com)
+#
+# Version 1.0.0
+#
+# Copyright (c) 2004-9999 Digital China Networks Co. Ltd
+#
+#
+# *********************************************************************
+# Change log:
+#     - 2017.11.6  created by zhangjxp
+#     - 2017.12.4 created by zhangjxp RDM50487 修改类CallThread，添加全局参数MYEVENT
+# *********************************************************************
+from threading import Thread, settrace, currentThread
+from .globalpara import MYEVENT
+
+
+def globaltrace(frame, why, arg):
+    try:
+        return currentThread().localtrace if why == 'call' else None
+    except AttributeError:
+        pass
+
+
+class CallThread(Thread):
+    def __init__(self, func, *args, **kargs):
+        if 'event' in kargs:
+            self._event = kargs['event']
+            del kargs['event']
+        else:
+            self._event = MYEVENT
+        Thread.__init__(self)
+        self.func = func
+        self.kargs = kargs
+        self.args = args
+        self._killed = False
+        self._willKill = False
+        self._event.set()
+
+    def start(self):
+        settrace(globaltrace)
+        Thread.start(self)
+
+    def run(self):
+        self._killed = False
+        if self.args and self.kargs:
+            self.func(*self.args, **self.kargs)
+        if self.args and not self.kargs:
+            self.func(*self.args)
+        if not self.args and self.kargs:
+            self.func(**self.kargs)
+        if not self.args and not self.kargs:
+            self.func()
+
+    def localtrace(self, frame, why, arg):
+        if self._willKill and why == 'line':
+            raise SystemExit()
+        elif not self._event.isSet() and why == 'line':
+            self._event.wait()
+        return self.localtrace
+
+    def pause(self):
+        self._event.clear()
+
+    def ahead(self):
+        self._event.set()

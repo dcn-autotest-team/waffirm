@@ -1,0 +1,157 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+# *********************************************************************
+# Software : PyCharm
+#
+# dcnuserlog.py - 
+#
+# Author    :yanwh(yanwh@digitalchina.com)
+#
+# Version 1.0.0
+#
+# Copyright (c) 2004-9999 Digital China Networks Co. Ltd 
+#
+#
+# *********************************************************************
+# Change log:
+#       - 2018/3/29 9:14  add by yanwh
+#
+# *********************************************************************
+
+
+import os
+import re
+import time
+
+try:
+    from wx import wx
+except ImportError:
+    import wx
+
+from .dcnbaselog import HtmlHandle, LoggerFromFile
+from ..dcnprint import printResError, printResWarn
+
+__all__ = ['DcnLog', 'close_logger', 'close_all_logger']
+
+
+class DcnLog(object):
+    """提供给用户使用的接口类"""
+    log_list = []  # 用于保存用例通过Dcnlog创建的log实例对象
+    
+    def __init__(self, log_base_path=None, log_define_type='default', *args, **kwargs):
+        """
+        :param log_base_path: 日志基础路径前缀，建议传入Dauto平台所在路径
+        :param log_define_type: 日志运行类型是决定日志是存在default目录还是run目录
+        :param **kwargs: 扩展参数，用于生成各种情况的日志文件名称和路径
+        prefix_log_name：日志前缀名称，该参数会在日志文件名称最前面增加[prefix_log_name]
+        page_name：子窗口（串口）的标题名称，例如172.17.100.14:10001
+        title_name：子窗口（串口）标题名称，例如s1 ap1等
+        test_name：对应printGlobal函数中的tittle参数，用于根据指定title自动生成日志路径
+        console_name：console日志的名称
+        """
+        if kwargs:
+            for _args, _value in list(kwargs.items()):
+                if _args == 'prefix_log_name':
+                    self.prefix_log_name = _value
+                elif _args == 'page_name':
+                    self.page_name = _value
+                elif _args == 'title_name':
+                    self.title_name = _value
+                elif _args == 'test_name':
+                    self.test_name = _value
+                elif _args == 'console_name':
+                    self.console_name = _value
+                elif _args == 'log_final_path':
+                    self.log_final_path = _value
+        
+        self.log_create_time = time.strftime('[%Y-%m-%d][%H-%M-%S]', time.localtime())  # 日志生成时间
+        self.log_base_path = log_base_path
+        self.log_define_type = log_define_type
+        if not hasattr(self, 'log_final_path'):
+            self.log_final_path = self._set_log_path()  # 实例化该类之后会自动生成对应的日志的
+    
+    def _set_log_path(self):
+        if hasattr(self, 'prefix_log_name') and hasattr(self, 'page_name') and hasattr(self, 'title_name'):
+            if ':' in self.page_name:
+                self.page_name = re.sub(':', '-', self.page_name)
+            _filename = self.prefix_log_name + self.page_name + '[' + self.title_name + ']' + self.log_create_time + '.log'
+        elif hasattr(self, 'prefix_log_name') and hasattr(self, 'console_name'):
+            _filename = self.prefix_log_name + self.console_name + self.log_create_time + '.html'
+        else:
+            _filename = self.log_create_time + '.log'
+        if hasattr(self, 'test_name'):
+            path_list = self.test_name.split('_')
+            if len(path_list) >= 3:
+                _path = os.path.join(self.log_base_path, self.log_define_type, path_list[1], path_list[2])
+            else:
+                _path = os.path.join(self.log_base_path, self.log_define_type, path_list[0][9:])
+        else:
+            _path = os.path.join(self.log_base_path, self.log_define_type)
+        if not os.path.exists(_path):
+            os.mkdir(_path)
+        return os.path.join(_path, _filename)
+    
+    def create_log(self, log_config_path=None):
+        """
+        创建并且返回一个具体日志实例(Class LogHandle的实例)
+        :return: 成功返回(Class LogHandle的实例，失败返回None
+        """
+        try:
+            if hasattr(self, 'console_name'):
+                if self.console_name:
+                    _li = HtmlHandle(self.log_final_path).get_logger()  # console日志记录成html日志
+                    wx.FindWindowById(10).logger = _li
+                else:
+                    import warnings
+                    warnings.warn('console log name is None')
+                    del warnings
+                    return None
+            else:
+                _li = LoggerFromFile(log_config_path, self.log_final_path).get_logger()
+            if self.log_define_type == 'run':
+                wx.FindWindowById(10).logfiles.append(self.log_final_path)  # 要上传的日志路径list
+                DcnLog.log_list.append(_li)  # 通过类属性记录生成的loglist实例对象
+            return _li
+        except Exception as e:
+            printResError('[异常]创建log时候遭遇异常，异常信息如下 {}'.format(e))
+    
+    get_logger = create_log
+
+
+def close_logger(logger):
+    """
+    :param logger: logger
+    :return:
+    """
+    try:
+        if logger:
+            if isinstance(logger.handlers, (list, tuple)):
+                for _handler in logger.handlers:
+                    logger.removeHandler(_handler)
+                    _handler.close()
+        else:
+            printResWarn('[信息]日志不存在')
+        return None
+    except IOError as e:
+        printResError('[异常]关闭log时候遭遇异常，异常信息如下' + str(e))
+
+
+def close_all_logger(log_list):
+    """
+    关闭LOGGERLIST中日志
+    LOGGERLIST -> [[logger1, handler1], [logger2, handler2], ...]
+    :param：None
+    :return:
+    """
+    _list = log_list[:]
+    if isinstance(log_list, list):
+        try:
+            for _res in _list:
+                log_list.remove(_res)
+                close_logger(_res)
+                time.sleep(0.1)
+            return _list
+        except AttributeError as e:
+            printResError('[异常]:关闭所有log的时候遭遇异常，异常信息如下 ' + str(e))
+    else:
+        printResWarn('[告警]:参数不是一个列表类型')

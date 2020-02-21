@@ -1,0 +1,1 @@
+Dauto Core Library For Create GUI

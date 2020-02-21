@@ -1,0 +1,384 @@
+#-*- coding: UTF-8 -*-#
+#*******************************************************************************
+# module_main.py
+#
+# Author:  zhangjxp
+#
+# Version 1.0.0
+#
+# Copyright (c) 2004-2008 Digital China Networks Co. Ltd
+#
+# Features:  存放变量信息
+#
+#*******************************************************************************
+# Change log:
+#     - 2017-12.8 created by zhangjxp
+#*******************************************************************************
+
+import time
+import re
+import random
+import wx
+import traceback
+
+from log import *
+from dreceiver import *
+from lib_all import *
+
+#Function
+def get_testcase_byuser(*args,**kargs):
+    '''
+    函数：根据用户输入的testcentral_24g=True等信息返回按照用户指定优先级排序的要执行模块字符串
+    输入：testcentral_24g=True,testcentral_5g=False
+    输出：函数返回一个列表，包含了用户选择为True的模块，并且该模块根据run文件中的xxx_Pri进行从小到大的排序
+    用法：默认只需要调用函数get_testcase_byuser()即可返回对应列表，用户也可指定参数
+    '''
+
+    if not kargs:
+        kargs={'central24G':central24G,
+               'central5G':central5G,
+               'local24G':local24G,
+               'local5G':local5G
+               }
+    l=[k for (k,v) in kargs.items() if v]
+    kargs={}
+    for i in l:
+        kargs.update({i:eval(i+'_pri')})
+    return [k for (k,v) in sorted(kargs.items(),key=lambda x:x[1])]
+    
+def create_mulconn(sutlist,prefix=''):
+    for sut in sutlist:
+        if sut == pc1:
+            try:
+                CreateNewConn(pc1_type,pc1,pc1_host,None,'run',logprefix=prefix)
+                TelnetLogin(pc1,Pc1_telnet_name,Pc1_telnet_password)
+            except Exception,e:
+                pass
+        elif sut == sta1:
+            try:
+                CreateNewConn(sta1_type,sta1,sta1_host,None,'run',logprefix=prefix)
+                TelnetLogin(sta1,Pc1_telnet_name,Pc1_telnet_password)
+            except Exception,e:
+                pass
+        elif sut == sta2:
+            try:
+                CreateNewConn(sta2_type,sta2,sta2_host,None,'run',logprefix=prefix)
+                TelnetLogin(sta2,Pc1_telnet_name,Pc1_telnet_password)
+            except Exception,e:
+                pass
+        elif sut == switch1:
+            try:
+                CreateNewConn(switch1_type,switch1,switch1_host,None,'run',logprefix=prefix)
+                SetTerminalLength(switch1)
+            except Exception,e:
+                pass
+        elif sut == switch2:
+            try:
+                CreateNewConn(switch2_type,switch2,switch2_host,None,'run',logprefix=prefix)
+                SetTerminalLength(switch2)
+            except Exception,e:
+                pass
+        elif sut == switch3:
+            try:
+                CreateNewConn(switch3_type,switch3,switch3_host,None,'run',logprefix=prefix)
+                SetTerminalLength(switch3)
+            except Exception,e:
+                pass
+        elif sut == ap1:
+            try:
+                CreateNewConn(ap1_type,ap1,ap1_host,None,'run',logprefix=prefix)
+                ApLogin(ap1)
+            except Exception,e:
+                pass
+        elif sut == ap2:
+            try:
+                CreateNewConn(ap2_type,ap2,ap2_host,None,'run',logprefix=prefix)
+                ApLogin(ap2)
+            except Exception,e:
+                pass
+
+
+def testlink_handler(tl, ac_version, ac_compile_time, ap_version, ap_compile_time, run_time_date,
+                     test_suite='waffirm', **kwargs):
+    """"
+    :param tl:  连接testlink xmlrpc sever的句柄指针
+    :param ac_version: ac1的版本信息 7.0.1.2（R001.0002）
+    :param ac_compile_time: ac的编译时间 2017-12-12 11:11:11(此处实际传入为AC show ver全部版本信息，
+            后面log.py中printTimer会进行处理成最终的格式)
+    :param ap_version: ap1的版本信息 2.2.3.2
+    :param ap_compile_time: ap的版本编译时间 2017-6-18 12:00:00（实际传入为cat /proc/version 全部信息，
+            后面testlinkapi.py中createApBuild函数进行格式化）
+    :param run_time_date: 脚本执行时间，默认为waffirm的加载时间 2017-12-12 12:00:00
+    :param test_suite: 测试用例套的名称， 默认waffirm
+    :param kwargs: 默认后面用于扩展参数
+    :return: None
+    """
+    # 日后扩展预留
+    if kwargs:
+        pass
+    if tl:
+        try:
+            if ac_version and ac_compile_time and \
+                    ap_version and ap_compile_time \
+                    and run_time and tl.__args__['testBuild'] == 'Dynamic Create':
+                # 更新testBuild,notes 交换机ac1的版本以及编译时间
+                tl.__args__['testBuild'] = str(ac_version)
+                tl.__args__['notes'] = str(ac_compile_time)
+                # 更新build_ap,release_date,creation_ts ap1的版本，ap1的编译时间,脚本开始运行时间
+                tl.__args__['build_ap'] = str(ap_version)
+                tl.__args__['release_date'] = str(ap_compile_time)
+                tl.__args__['creation_ts'] = run_time_date
+                # 更新testSuite
+                tl.__args__['testSuite'] = test_suite
+        except ValueError as ex:
+            print 'Param is error %s ' %ex
+
+def classify_testcase(Tlist):
+    '''
+    功能：根据用例名称对用例进行分类：
+    名称后缀带_ALL代表集中转发、本地转发、2.4G、5G都需要执行；
+    名称后缀带_ONE代表与集中转发、本地转发、2.4G、5G无关，此类用例在整个执行过程中只会执行一遍
+    名称后缀带_CEN代表集中转发（包括2.4G和5G）需要执行；
+    名称后缀带_LOC代表本地转发（包括2.4G和5G）需要执行；
+    名称后缀带_24G代表2.4G需要执行（包括集中转发和本地转发）；
+    名称后缀带_5G代表5G需要执行（包括集中转发和本地转发）；
+    参数：Tlist，由所有测试例名称构成的测试列表，由run文件自动生成
+    返回值：分类后的测试用例字典，key为类别，如ALL、ONE等，值为属于该类的测试用例列表   
+    '''
+    ret = {'ALL': [],
+           'ONE': [],
+           'CEN': [],
+           'LOC': [],
+           '24G': [],
+           '5G': [],
+           'C24G': [],
+           'C5G': [],
+           'L24G': [],
+           'L5G': []}
+    for testcase in Tlist:
+        if '_ALL' in testcase[0]:
+            ret['ALL'].append(testcase)
+        elif '_ONE' in testcase[0]:
+            ret['ONE'].append(testcase)
+        elif '_CEN' in testcase[0]:
+            ret['CEN'].append(testcase)
+        elif '_LOC' in testcase[0]:
+            ret['LOC'].append(testcase)
+        elif '_24G' in testcase[0]:
+            ret['24G'].append(testcase)
+        elif '_5G' in testcase[0]:
+            ret['5G'].append(testcase)
+        elif '_C24G' in testcase[0]:
+            ret['C24G'].append(testcase)
+        elif '_C5G' in testcase[0]:
+            ret['C5G'].append(testcase)
+        elif '_L24G' in testcase[0]:
+            ret['L24G'].append(testcase)
+        elif '_L5G' in testcase[0]:
+            ret['L5G'].append(testcase)
+        else:
+            ret['ALL'].append(testcase)
+    return ret
+    
+def get_testlist(testcategory, order, Tdic):
+    '''
+    功能：根据当前执行的测试类别获取testlist列表，如当前执行集中转发2.4G测试，
+    则会返回由名称带_ALL、_CEN、_24G、_C24G的所有测试例组成的列表
+    参数：testcategory：代表当前测试类别的字符串
+    order：当前测试类别的执行顺序，值为0、1、2、3
+    Tdic：由classify_testcase函数获得的返回值
+    返回值：该测试类别需要执行的所有测试用例组成的列表
+    '''
+    finaltestlist = []
+    finaltestlist.extend(Tdic['ALL'])
+    if order == 0:
+        finaltestlist.extend(Tdic['ONE'])
+    if 'central' in testcategory:
+        finaltestlist.extend(Tdic['CEN'])
+        if '24G' in testcategory:
+            finaltestlist.extend(Tdic['24G'])
+            finaltestlist.extend(Tdic['C24G'])
+        if '5G' in testcategory:
+            finaltestlist.extend(Tdic['5G'])
+            finaltestlist.extend(Tdic['C5G'])
+    if 'local' in testcategory:
+        finaltestlist.extend(Tdic['LOC'])
+        if '24G' in testcategory:
+            finaltestlist.extend(Tdic['24G'])
+            finaltestlist.extend(Tdic['L24G'])
+        if '5G' in testcategory:
+            finaltestlist.extend(Tdic['5G'])
+            finaltestlist.extend(Tdic['L5G'])
+    return finaltestlist
+    
+def error_fix(casename):
+    '''
+    功能：遇到脚本错误后，自动重启设备，执行初始化操作
+    参数：testcategory：代表当前测试类别的字符串
+    order：当前测试类别的执行顺序，值为0、1、2、3
+    Tdic：由classify_testcase函数获得的返回值
+    返回值：该测试类别需要执行的所有测试用例组成的列表
+    '''
+    printTimer(casename,'Start')
+    printCheckStep(casename, 'Step 0', 1)
+    traceback.print_exc()
+    printTimer(casename, 'End',suggestion = ['There is something wrong in this script'])
+    set_default = 1
+    execfile(module + '\\' + module + '_initial.py')
+    set_default = temp_setdefault
+#  脚本开始执行时间
+run_time = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+            
+# 导入参数    
+execfile('module_config_topu.py')
+execfile('module_config_vars.py')
+execfile('module_config_run.py')
+
+# 获取用户自定义的字符串，添加在log的文件名中
+if vars().has_key('prefix_log'):
+    if prefix_log == '':
+        pass
+    else:
+        prefix_log='['+prefix_log+']'
+else:
+    prefix_log = ''
+    
+# 打开PC1,STA1,STA2,AC1,AC2,S3,AP1,AP2设备串口
+create_mulconn([pc1,sta1,sta2,switch1,switch2,switch3,ap1,ap2])
+
+# 获取switch1参数
+ac1_version = Get_switch_version(switch1)
+ac1type=GetAcType(switch1)
+EnterInterfaceMode(switch1,'vlan 1')
+s1vlanmac = GetVlanMac(switch1)
+ac1_compile_time = SetCmd(switch1, 'show version', timeout=1)
+
+# 获取switch2参数(不是所有模块都需要s2)
+try:
+    ac2_version = Get_switch_version(switch2)
+    ac2type=GetAcType(switch2)
+except Exception,e:
+    pass
+    
+# 获取AP1参数
+# 获取AP的命令类型，'set' or 'uci set'
+Ap1cmdtype = Get_ap_cmdtype(ap1)
+ap1_version = Get_ap_version(ap1,Ap1cmdtype)
+hwtype1 = Get_ap_hwtype(ap1,Ap1cmdtype)
+ap1maclist = GetApMac(ap1,Ap1cmdtype)
+ap1mac = ap1maclist['-']
+ap1_compile_time = SetCmd(ap1, 'cat /proc/version', timeout=1)
+
+# 获取AP2参数(不是所有模块都需要AP1)
+try:
+    Ap2cmdtype = Get_ap_cmdtype(ap2)
+    hwtype2 = Get_ap_hwtype(ap2,Ap2cmdtype)
+    ap2maclist = GetApMac(ap2,Ap2cmdtype)
+    ap2mac = ap2maclist['-']   
+except Exception,e:
+    ap2maclist = None   
+       
+##获得sta1的mac地址
+sta1mac=GetStaMac(sta1)
+sta1mac_type1=GetStaMac(sta1,connectflag=':')
+sta1mac_upcase = sta1mac.upper()
+##获得sta2的mac地址
+sta2mac=GetStaMac(sta2)
+sta2mac_type1=GetStaMac(sta2,connectflag=':')
+sta2mac_upcase = sta2mac.upper()
+     
+## 更新testlink
+testlink_handler(tl, ac1_version, ac1_compile_time, ap1_version, ap1_compile_time, run_time)  
+        
+# # 判断需要执行的测试类别
+# testcategory_list = get_testcase_byuser()
+
+radio1num = '1'
+if vars().has_key('radio5G'):
+    macincrease = (radio5G-1)*16
+    radio2num = str(radio5G)
+else:
+    macincrease = 16
+    radio2num = '2'
+    radio5G = 2
+# 如果执行set default，则不执行 unintial
+if set_default == 1:
+    passunintial = True
+    
+temp_setdefault = set_default  
+for module in module_list:
+    # 根据模块确定测试名称testName
+    testName = 'module_%s' % module
+    printGlobal('TestCase_'+testName,'Nothing')
+    # 导入用例
+    execfile(module + '\\' + module + '_testcase.py') 
+    # 判断需要执行的测试类别和测试用例
+    testcategory_list = get_testcase_byuser()
+    testcase_dic = classify_testcase(testlist)
+    for item in range(len(testcategory_list)):
+        # 打开PC1,STA1,STA2,AC1,AC2,S3,AP1,AP2设备串口
+        create_mulconn([pc1,sta1,sta2,switch1,switch2,switch3,ap1,ap2],'['+testcategory_list[item]+']')
+        printGlobal('TestCase_'+testName,'Start',logprefix='['+testcategory_list[item]+']') 
+        # 判断在当前类别中需要执行哪些用例
+        finaltestlist = get_testlist(testcategory_list[item], item, testcase_dic)
+        # 获取参数testcentral、testlocal，将在initial文件中用到
+        testcentral = True if 'central' in testcategory_list[item] else False
+        testlocal = True if 'local' in testcategory_list[item] else False
+        # 获取ApMAC
+        ap1vapmac = ap1mac
+        ap1mac_type1 = ap1maclist[':']
+        ap1mac_type1_network2 =incrmac(ap1mac_type1,1).lower()
+        if ap2maclist:
+            ap2vapmac = ap2mac
+            ap2mac_type1 = ap2maclist[':']
+            ap2mac_type1_network2=incrmac(ap2mac_type1,1).lower()
+        if '24G' in testcategory_list[item]:
+            # 参数test24glist、test5glist
+            test24gflag = True
+            test5gflag = False
+            radionum = '1'
+            wlan = 'wlan0'
+        if '5G' in testcategory_list[item]:
+            # 获取ApMAC（5g）
+            ap1vapmac = incrmac(ap1vapmac,macincrease).lower()
+            ap1mac_type1 = incrmac(ap1mac_type1,macincrease).lower()
+            ap1mac_type1_network2=incrmac(ap1mac_type1,1).lower()
+            if ap2maclist:
+                ap2vapmac = incrmac(ap2vapmac,macincrease).lower()
+                ap2mac_type1 = incrmac(ap2mac_type1,macincrease).lower()
+                ap2mac_type1_network2 = incrmac(ap2mac_type1,1).lower()
+            # 参数test24gflag、test5gflag
+            test24gflag = False
+            test5gflag = True
+            radionum = str(radio5G)
+            wlan = 'wlan1'
+        # 导入参数并执行初始化
+        execfile(module + '\\' + module + '_vars.py')
+        # 开始执行用例
+        if len(finaltestlist) > 0:
+            execfile(module + '\\' + module + '_initial.py')
+            for j in range(runtimes):
+                wx.FindWindowById(10).nowrunning = ''
+                wx.FindWindowById(10).faillist = []
+                for case in finaltestlist:
+                    try:
+                        wx.FindWindowById(10).nowrunning = case[0]
+                        execfile(module + '\\' +case[0])
+                    except Exception,e:
+                        error_fix(case[0])
+                    print wx.FindWindowById(10).faillist
+            printGlobal('TestCase_'+testName,'End')
+            IdleAfter(10)
+            faillister = wx.FindWindowById(10).faillist[:]
+            if len(faillister) > 0:
+                # 打开PC1,STA1,STA2,AC1,AC2,S3,AP1,AP2设备串口
+                create_mulconn([pc1,sta1,sta2,switch1,switch2,switch3,ap1,ap2],'['+testcategory_list[item]+']'+'[ReRun]')
+                printGlobal('TestCase_'+testName,'RerunStart',logprefix='['+testcategory_list[item]+']')
+                for fileTemp in faillister:
+                    try:
+                        execfile(module + '\\' +fileTemp)
+                    except Exception,e:
+                        error_fix(fileTemp)
+                printGlobal('TestCase_'+testName,'RerunEnd')
+            if set_default != 1:
+                execfile(module + '\\' + module + '_uninitial.py')

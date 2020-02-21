@@ -1,0 +1,20 @@
+Metadata-Version: 1.1
+Name: dauto
+Version: 0.0.1
+Summary: Dauto Core Library For Create GUI
+Home-page: http://192.168.60.60/
+Author: yanwh
+Author-email: yanwh@digitalchina.com
+License: MIT
+Description: Dauto Core Library For Create GUI
+Platform: any
+Classifier: Environment :: GUI Environment
+Classifier: Intended Audience :: Developers
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Text Processing :: Indexing
+Classifier: Topic :: Utilities
+Classifier: Topic :: Software Development :: Libraries :: Python Modules
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7

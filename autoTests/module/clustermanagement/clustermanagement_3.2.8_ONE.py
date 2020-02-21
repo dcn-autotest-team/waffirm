@@ -1,0 +1,238 @@
+#-*- coding: UTF-8 -*-#
+#
+#*******************************************************************************
+# clustermanagement_3.2.8.py - test case 3.2.8 of clustermanagement
+#
+# Author:  humj
+#
+# Version 1.0.0
+#
+# Date:2018-1-18 16:19:00
+#
+# Copyright (c) 2004-2011 Digital China Networks Co. Ltd
+#
+# Features:
+# 3.2.8 AP通过DHCP主动发现AC(IPV6)
+# 测试目的：测试AP能通过DHCP主动发现AC(IPV6)
+# 测试环境：同测试拓扑
+
+#Package
+
+#Global Definition
+
+#Source files
+
+#Procedure Definition 
+
+#Functional Code
+
+testname = 'TestCase clustermanagement_3.2.8'
+
+avoiderror(testname)
+printTimer(testname,'Start','Test AP active discovery AC through DHCP')
+
+################################################################################
+#Step 1
+#
+#操作
+#把AC2的IPv6地址加入到AC1的ip-list中
+#在S3上配置vlan70的接口IP,AP dhcpv6 server中配置option 43地址,重启dhcp服务
+
+#
+#预期
+#在AC1上show wireless peer-switch显示有“IP Address”为“IF_VLAN70_S2_IPV6”的条目
+#dhcpv6状态重启成功,在AP1上用get managed-ap检验,可以看到AP1能通过option52获取了四个交换机地址,如下：
+#dhcp-switch-address-1为IF_VLAN70_S1_IPV6;dhcp-switch-address-2为IF_VLAN70_S2_IPV6
+#dhcp-switch-address-3为2001:1::100;dhcp-switch-address-4为2001:1::200
+################################################################################
+
+printStep(testname,'Step 1',
+          'Config dhcp server on AC1',
+          'Check the result')
+
+# operate
+exec(compile(open('clustermanagement\\clustermanagement_initial(ipv6).py', "rb").read(), 'clustermanagement\\clustermanagement_initial(ipv6).py', 'exec'))
+
+EnterWirelessMode(switch1)
+SetCmd(switch1,'discovery ipv6-list',If_vlan70_s2_ipv6_s)
+SetCmd(switch1,'no enable')
+IdleAfter(1)
+SetCmd(switch1,'enable')
+
+EnterConfigMode(switch1)
+SetCmd(switch1,'service dhcpv6')
+
+EnterConfigMode(switch1)
+SetCmd(switch1,'ipv6 dhcp pool APv6')
+SetCmd(switch1,'network-address',Dhcp_ap_pool_ipv6)
+SetCmd(switch1,'option 52 ipv6',If_vlan70_s1_ipv6_s,If_vlan70_s2_ipv6_s,
+       '2002:1::200','2002:1::100')
+
+EnterConfigMode(switch1)
+SetCmd(switch1,'interface vlan',Vlan70)	   
+SetCmd(switch1,'no ipv6 nd suppress-ra')
+SetCmd(switch1,'ipv6 nd managed-config-flag')
+SetCmd(switch1,'ipv6 nd other-config-flag')
+SetCmd(switch1,'ipv6 dhcp server APv6')
+	      
+EnterConfigMode(switch1)
+SetCmd(switch1,'no service dhcpv6')	
+SetCmd(switch1,'service dhcpv6')
+
+ApSetcmd(ap1,Ap1cmdtype,'set_dhcpv6_down')
+ApSetcmd(ap1,Ap1cmdtype,'set_dhcpv6_up')
+ApSetcmd(ap1,Ap1cmdtype,'saverunning')
+	
+IdleAfter(30)
+EnterEnableMode(switch1)
+#check1
+res1 = CheckSutCmd(switch1,'show wireless peer-switch',
+				   check=[(If_vlan70_s2_ipv6_s)],
+				   retry=30,interval=5,waitflag=False,IC=True)
+
+for i in range(5):
+	res2 = Check_ap_automatic_switchip(ap1,Ap1cmdtype,'dhcp',
+                                       [If_vlan70_s1_ipv6_s,If_vlan70_s2_ipv6_s,'2002:1::200','2002:1::100'],
+                                       ['1','2','3','4'],ipversion='ipv6')
+	if res2 == 0:
+		break
+	IdleAfter(10)
+	
+#result
+printCheckStep(testname, 'Step 1', res1, res2)
+
+################################################################################
+#Step 2
+#
+#操作
+# 在AC1上查看AP1的状态
+#
+#预期
+#show wi ap status在AC1上可以检测到AP1被AC1成功管理,AP1_MAC的“Status”为“Managed Success”
+################################################################################
+
+printStep(testname,'Step 2',
+          'Check AP1 status on AC1',
+          'Check the result')
+
+# operate
+RebootAp(AP=ap1,connectTime=30)
+		  
+#check
+EnterEnableMode(switch1)
+res1 = CheckSutCmd(switch1,'show wireless ap status',
+				   check=[(ap1mac,'Managed','Success')],
+				   retry=30,interval=5,waitflag=False,IC=True)
+	
+#result
+printCheckStep(testname, 'Step 2', res1)
+
+################################################################################
+#Step 3
+#
+#操作
+# 在AC1上把s1p1接口down掉
+#
+#预期
+# show wi ap status在AC2上可以检测到AP1被AC2成功管理,AP1_MAC的“Status”为“Managed Success”
+################################################################################
+
+printStep(testname,'Step 3',
+          'Shutdown the interface on AC1',
+		  'Check the result')		  
+
+# operate		  
+EnterConfigMode(switch1)
+SetCmd(switch1,'interface',s1p1)
+SetCmd(switch1,'shutdown')
+
+IdleAfter(20)
+#check
+EnterEnableMode(switch2)
+res1 = CheckSutCmd(switch2,'show wireless ap status',
+				   check=[(ap1mac,'Managed','Success')],
+				   retry=30,interval=5,waitflag=False,IC=True)
+						
+#result
+printCheckStep(testname, 'Step 3', res1)
+
+################################################################################
+#Step 4
+#
+#操作
+# 在AC1上把s1p1接口up
+# 在AC2上重启无线功能
+#
+#预期
+# show wi ap status在AC1上可以检测到AP1被AC1成功管理,AP1_MAC的“Status”为“Managed Success”
+################################################################################
+
+printStep(testname,'Step 4',
+          'No shutdown the interface on AC1',
+          'Check the result')
+
+# operate		  
+EnterConfigMode(switch1)
+SetCmd(switch1,'interface',s1p1)
+SetCmd(switch1,'shutdown')
+SetCmd(switch1,'no shutdown')
+
+EnterWirelessMode(switch2)
+SetCmd(switch2,'no enable')
+IdleAfter(1)
+SetCmd(switch2,'enable')
+
+RebootAp(AP=ap1,connectTime=30)
+
+#check
+EnterEnableMode(switch1)
+res1 = CheckSutCmd(switch1,'show wireless ap status',
+				   check=[(ap1mac,'Managed','Success')],
+				   waittime=5,retry=20,interval=5,IC=True)
+	
+#result
+printCheckStep(testname,'Step 4', res1)
+
+################################################################################
+#Step 5
+#
+#操作
+#恢复默认配置
+################################################################################
+
+printStep(testname,'Step 5',
+          'Recover initial config')
+
+# operate		  
+#配置AC1的ipv6 list,开启s1p1端口
+EnterWirelessMode(switch1)
+SetCmd(switch1,'no discovery ipv6-list')
+SetCmd(switch1,'no enable')
+IdleAfter(1)
+SetCmd(switch1,'enable')
+
+#恢复AP1的配置
+RebootAp(setdefaut=True, AP=ap1,connectTime=1)
+ApSetcmd(ap1,Ap1cmdtype,'set_static_ip',Ap1_ipv4)
+ApSetcmd(ap1,Ap1cmdtype,'set_static_ipv6',Ap1_ipv6)
+ApSetcmd(ap1,Ap1cmdtype,'set_dhcp_down')
+ApSetcmd(ap1,Ap1cmdtype,'set_dhcpv6_down')
+ApSetcmd(ap1,Ap1cmdtype,'set_ip_route',If_vlan70_s3_ipv4_s)
+ApSetcmd(ap1,Ap1cmdtype,'set_ipv6_route',If_vlan70_s3_ipv6_s)
+ApSetcmd(ap1,Ap1cmdtype,'set_static_ipv6_prefix_len','64')
+ApSetcmd(ap1,Ap1cmdtype,'saverunning')
+
+#AC1操作
+EnterConfigMode(switch1)
+SetCmd(switch1,'interface vlan',Vlan70)
+SetCmd(switch1,'ipv6 nd suppress-ra')
+SetCmd(switch1,'no ipv6 nd managed-config-flag')
+SetCmd(switch1,'no ipv6 nd other-config-flag')
+SetCmd(switch1,'no ipv6 dhcp server APv6')
+EnterConfigMode(switch1)
+SetCmd(switch1,'no ipv6 dhcp pool APv6')
+SetCmd(switch1,'no service dhcpv6')
+
+exec(compile(open('clustermanagement\\clustermanagement_unitial(ipv6).py', "rb").read(), 'clustermanagement\\clustermanagement_unitial(ipv6).py', 'exec'))	  
+#end
+printTimer(testname, 'End')

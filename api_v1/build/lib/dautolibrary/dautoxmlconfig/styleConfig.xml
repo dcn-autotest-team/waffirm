@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<styles>
+    <style id="1">
+        <type>basic</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(20,20,20)</backgroundColor>
+        <foregroundColor>wx.Colour(0,230,0)</foregroundColor>
+    </style>
+    <style id="2">
+        <type>cool</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(24,51,60)</backgroundColor>
+        <foregroundColor>wx.Colour(212,245,255)</foregroundColor>
+    </style>
+    <style id="3">
+        <type>cool_blue</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(12,38,86)</backgroundColor>
+        <foregroundColor>wx.WHITE</foregroundColor>
+    </style>
+    <style id="4">
+        <type>cool_blue2</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(28,61,125)</backgroundColor>
+        <foregroundColor>wx.WHITE</foregroundColor>
+    </style>
+    <style id="5">
+        <type>cool_green</type>
+        <enable>True</enable>
+        <backgroundColor>wx.Colour(17,118,125)</backgroundColor>
+        <foregroundColor>wx.WHITE</foregroundColor>
+    </style>
+    <style id="6">
+        <type>cool_green2</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(26,81,33)</backgroundColor>
+        <foregroundColor>wx.WHITE</foregroundColor>
+    </style>
+    <style id="7">
+        <type>cool_green3</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(204,232,207)</backgroundColor>
+        <foregroundColor>wx.BLACK</foregroundColor>
+    </style>
+    <style id="8">
+        <type>notVeryDark</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(74,74,74)</backgroundColor>
+        <foregroundColor>wx.WHITE</foregroundColor>
+    </style>
+    <style id="9">
+        <type>black_white</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(230,230,230)</backgroundColor>
+        <foregroundColor>wx.BLACK</foregroundColor>
+    </style>
+    <style id="10">
+        <type>white_black</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(30,30,30)</backgroundColor>
+        <foregroundColor>wx.WHITE</foregroundColor>
+    </style>
+    <style id="11">
+        <type>blue_black</type>
+        <enable>False</enable>
+        <backgroundColor>wx.Colour(10,10,10)</backgroundColor>
+        <foregroundColor>wx.Colour(5,211,255)</foregroundColor>
+    </style>
+</styles>

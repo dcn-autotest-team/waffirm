@@ -1,0 +1,77 @@
+#!/usr/bin/env python
+# -*- coding: UTF-8 -*-
+# *********************************************************************
+# Software : PyCharm
+#
+# dcntestlinkutils.py - 
+#
+# Author    :yanwh(yanwh@digitalchina.com)
+#
+# Version 1.0.0
+#
+# Copyright (c) 2004-9999 Digital China Networks Co. Ltd 
+#
+#
+# *********************************************************************
+# Change log:
+#       - 2018/3/19 18:36  add by yanwh
+#
+# *********************************************************************
+from __future__ import print_function
+
+import json
+from functools import wraps
+
+from ..testlinkapi import TestlinkAPIClient
+from ..testlinkhelper import TestLinkHelper
+
+TESTLINK_SERVER_URL = 'http://192.168.60.60/lib/api/xmlrpc/v1/xmlrpc.php'  # testlink服务器的地址默认值
+TESTLINK_DEFAULT_DEVKEY = '292efecf947c37e59ef0b32dbd2b1da1'  # testlink服务器的key默认值
+
+
+def singleton(cls):
+    """
+    单例模式装饰器函数，用于创建单例testlink handler
+    :param cls: 要实现单例模式的类
+    :return:
+    """
+    instances = {}
+    
+    @wraps(cls)  # 保留原始的__dict__
+    def get_instance(*args, **kwargs):
+        if cls not in instances:
+            instances[cls] = cls(*args, **kwargs)
+        return instances[cls]
+    
+    return get_instance
+
+
+@singleton
+class DcnTestlinkHelper(TestLinkHelper):
+    """
+    用户连接testlink服务器的类，继承于testlink.TestLinkHelper类
+    """
+    
+    def __init__(self, url=TESTLINK_SERVER_URL, key=TESTLINK_DEFAULT_DEVKEY):
+        TestLinkHelper.__init__(self, url, key)
+        self.tl = self._link_to_testlink()
+    
+    def _link_to_testlink(self):
+        """
+        # 连接testlink服务器
+        :return:
+        """
+        _tl = ''
+        try:
+            _tl = self.connect(TestlinkAPIClient)
+            print('[通知][初始化]连接到Testlink服务器成功')
+        except Exception as e:
+            print('[错误]很遗憾跟Testlink服务器的连接出现异常，异常原因如下 {}'.format(e))
+        return _tl
+    
+    def __repr__(self):
+        """
+        重载__repr__，实现人性化打印
+        :return:
+        """
+        return json.dumps(self.tl.__args__, ensure_ascii=False, indent=4, sort_keys=True)
